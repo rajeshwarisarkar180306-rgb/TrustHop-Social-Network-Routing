@@ -2,12 +2,13 @@ from pyvis.network import Network
 import networkx as nx
 import json
 
-PALETTE = ["#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7"]
+# Removed red/coral/orange shades from community palette so only malicious/congested nodes use them
+PALETTE = ["#4E79A7", "#76B7B2", "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#8CD17D"]
 
 def render_graph(G, active_path=None, source=None, target=None):
     net = Network(height="560px", width="100%", bgcolor="#0E1117", font_color="white")
     
-    # Increase k (optimal node distance) and iterations so clusters spread out cleanly
+    # Spread clusters out cleanly with zero overlap
     pos = nx.spring_layout(G, k=1.8, iterations=120, seed=42)
 
     for node, data in G.nodes(data=True):
@@ -37,13 +38,15 @@ def render_graph(G, active_path=None, source=None, target=None):
             size = 24
 
         status = "Online"
-        if not data["online"]: status = "OFFLINE"
-        elif data["malicious"]: status = "BLACK-HOLE ATTACKER"
-        elif data["congested"]: status = "CONGESTED"
+        if not data["online"]:
+            status = "OFFLINE"
+        elif data["malicious"]:
+            status = "BLACK-HOLE ATTACKER"
+        elif data["congested"]:
+            status = "CONGESTED"
 
         title = f"Node {node} [{status}]\nCommunity: {data['community']}\nCentrality: {data['betweenness']:.3f}"
         
-        # Scale spread from 450 -> 750 so labels and hubs have generous breathing room
         x_coord = float(pos[node][0] * 750)
         y_coord = float(pos[node][1] * 750)
 
@@ -62,26 +65,61 @@ def render_graph(G, active_path=None, source=None, target=None):
 
     for u, v, data in G.edges(data=True):
         edge_id = f"{u}-{v}"
-        net.add_edge(u, v, id=edge_id, color="#2C313A", width=1.2, title=f"Trust: {data['trust']}")
+        net.add_edge(
+            u,
+            v,
+            id=edge_id,
+            color="#2C313A",
+            width=1.2,
+            smooth={"type": "curvedCW", "roundness": 0.12},
+            title=f"Trust: {data['trust']}"
+        )
 
     html_string = net.generate_html()
 
-    # Inject client-side JS animation so it highlights smoothly without flickering
+    # Determine which nodes the camera should automatically zoom & center on
+    focus_nodes = []
+    if active_path and len(active_path) > 0:
+        focus_nodes = active_path
+    else:
+        if source is not None:
+            focus_nodes.append(source)
+        if target is not None:
+            focus_nodes.append(target)
+
+    focus_json = json.dumps(focus_nodes)
+
+    path_edges = []
     if active_path and len(active_path) > 1:
-        path_edges = []
         for i in range(len(active_path) - 1):
             u, v = active_path[i], active_path[i+1]
             path_edges.append(f"{u}-{v}")
             path_edges.append(f"{v}-{u}")
+    path_json = json.dumps(path_edges)
 
-        path_json = json.dumps(path_edges)
-        
-        js_injection = f"""
-        <script>
-        setTimeout(function() {{
-            if (typeof edges !== 'undefined' && typeof network !== 'undefined') {{
-                let pathEdges = {path_json};
-                let idx = 0;
+    # Inject JS for automatic camera focus + smooth cyan route animation
+    js_injection = f"""
+    <script>
+    setTimeout(function() {{
+        if (typeof network !== 'undefined') {{
+            let focusNodes = {focus_json};
+            if (focusNodes.length > 0) {{
+                network.fit({{
+                    nodes: focusNodes,
+                    animation: {{
+                        duration: 700,
+                        easingFunction: "easeInOutQuad"
+                    }}
+                }});
+            }} else {{
+                network.fit({{ animation: {{ duration: 500 }} }});
+            }}
+        }}
+
+        if (typeof edges !== 'undefined') {{
+            let pathEdges = {path_json};
+            let idx = 0;
+            if (pathEdges.length > 0) {{
                 let interval = setInterval(function() {{
                     if (idx < pathEdges.length) {{
                         let edgeId = pathEdges[idx];
@@ -94,9 +132,10 @@ def render_graph(G, active_path=None, source=None, target=None):
                     }}
                 }}, 350);
             }}
-        }}, 400);
-        </script>
-        """
-        html_string = html_string.replace("</body>", js_injection + "</body>")
+        }}
+    }}, 300);
+    </script>
+    """
+    html_string = html_string.replace("</body>", js_injection + "</body>")
 
     return html_string

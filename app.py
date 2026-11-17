@@ -74,19 +74,54 @@ with tab1:
         st.markdown("---")
         st.markdown("### 🗺️ Network Legend")
         st.markdown("""
-        - ⭐ **Green Star:** Source Node (Sender)
-        - 🌟 **Pink Star:** Destination Node (Receiver)
-        - 🔵 **Cyan Line:** Active Packet Route
-        - 🟥 **Dark Red Box:** Malicious / Black-Hole Node
-        - 🔺 **Orange Triangle:** Congested Bridge Hub
-        - ⚫ **Dark Gray Dot:** Offline / Failed Node
-        - 🟣 **Colored Dots:** Healthy Social Communities
-        """)
+        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.4;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="color: #00FF88; font-size: 20px; line-height: 1;">★</span>
+            <span><b>Green Star:</b> Source Node (Sender)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="color: #FF3366; font-size: 20px; line-height: 1;">★</span>
+            <span><b>Pink Star:</b> Destination Node (Receiver)</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: inline-block; width: 18px; height: 4px; background-color: #00E5FF; border-radius: 2px;"></span>
+            <span><b>Cyan Line:</b> Active Packet Route</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: inline-block; width: 15px; height: 15px; background-color: #8B0000; border: 1px solid #ff4d4d; border-radius: 2px;"></span>
+            <span><b>Dark Red Box:</b> Malicious / Black-Hole Node</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="color: #FF9900; font-size: 18px; line-height: 1;">▲</span>
+            <span><b>Orange Triangle:</b> Congested Bridge Hub</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: inline-block; width: 14px; height: 14px; background-color: #3A3A3A; border-radius: 50%;"></span>
+            <span><b>Dark Gray Dot:</b> Offline / Failed Node</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="display: inline-flex; gap: 3px;">
+              <span style="width: 10px; height: 10px; background-color: #4E79A7; border-radius: 50%;"></span>
+              <span style="width: 10px; height: 10px; background-color: #59A14F; border-radius: 50%;"></span>
+              <span style="width: 10px; height: 10px; background-color: #B07AA1; border-radius: 50%;"></span>
+            </span>
+            <span><b>Colored Dots:</b> Healthy Social Communities</span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     if "last_path" not in st.session_state:
         st.session_state.last_path = None
         st.session_state.last_status = ""
         st.session_state.last_algo = ""
+        st.session_state.last_pair = None
+
+    # Clear outdated path if user changes topology, source, or destination
+    current_pair = (model_type, source, target)
+    if st.session_state.last_pair != current_pair and not calc_btn:
+        st.session_state.last_path = None
+        st.session_state.last_status = ""
+        st.session_state.last_pair = current_pair
 
     if calc_btn:
         if "Social-Aware" in algo:
@@ -97,6 +132,7 @@ with tab1:
         st.session_state.last_path = path
         st.session_state.last_status = status_msg
         st.session_state.last_algo = algo
+        st.session_state.last_pair = current_pair
 
     with col_vis:
         path = st.session_state.last_path
@@ -110,7 +146,7 @@ with tab1:
             display_path = path[:step]
             
             html_graph = render_graph(G, display_path, source, target)
-            components.html(html_graph, height=500)
+            components.html(html_graph, height=560)
 
             # Live Route Justification Panel
             if "Social-Aware" in active_algo:
@@ -130,7 +166,7 @@ with tab1:
         elif path and len(path) == 1:
             st.success(f"Status: {status_msg}")
             html_graph = render_graph(G, path, source, target)
-            components.html(html_graph, height=500)
+            components.html(html_graph, height=560)
         else:
             if calc_btn or status_msg:
                 st.error(f"Routing Failed: {status_msg}")
@@ -138,7 +174,7 @@ with tab1:
                 st.info("Select source and destination, then click 'Calculate Path'.")
             
             html_graph = render_graph(G, None, source, target)
-            components.html(html_graph, height=500)
+            components.html(html_graph, height=560)
 
 with tab2:
     st.subheader("📊 100-Packet Stress Benchmark Suite")
