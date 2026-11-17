@@ -1,19 +1,20 @@
 from pyvis.network import Network
 import networkx as nx
-import tempfile
 import json
 
 PALETTE = ["#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7"]
 
 def render_graph(G, active_path=None, source=None, target=None):
-    net = Network(height="520px", width="100%", bgcolor="#0E1117", font_color="white")
-    pos = nx.spring_layout(G, seed=42)
+    net = Network(height="560px", width="100%", bgcolor="#0E1117", font_color="white")
+    
+    # Increase k (optimal node distance) and iterations so clusters spread out cleanly
+    pos = nx.spring_layout(G, k=1.8, iterations=120, seed=42)
 
     for node, data in G.nodes(data=True):
         comm_color = PALETTE[data["community"] % len(PALETTE)]
         color = comm_color if data["online"] else "#3A3A3A"
         shape = "dot"
-        size = 14 + (data["betweenness"] * 120)
+        size = 14 + (data["betweenness"] * 100)
         label = f"N{node}"
 
         if data["malicious"]:
@@ -28,12 +29,12 @@ def render_graph(G, active_path=None, source=None, target=None):
             color = "#00FF88"
             shape = "star"
             label = f"SRC ({node})"
-            size = 26
+            size = 24
         elif node == target:
             color = "#FF3366"
             shape = "star"
             label = f"DST ({node})"
-            size = 26
+            size = 24
 
         status = "Online"
         if not data["online"]: status = "OFFLINE"
@@ -41,14 +42,27 @@ def render_graph(G, active_path=None, source=None, target=None):
         elif data["congested"]: status = "CONGESTED"
 
         title = f"Node {node} [{status}]\nCommunity: {data['community']}\nCentrality: {data['betweenness']:.3f}"
-        x_coord = float(pos[node][0] * 450)
-        y_coord = float(pos[node][1] * 450)
+        
+        # Scale spread from 450 -> 750 so labels and hubs have generous breathing room
+        x_coord = float(pos[node][0] * 750)
+        y_coord = float(pos[node][1] * 750)
 
-        net.add_node(node, label=label, color=color, size=size, title=title, shape=shape, x=x_coord, y=y_coord, physics=False)
+        net.add_node(
+            node,
+            label=label,
+            color=color,
+            size=size,
+            title=title,
+            shape=shape,
+            x=x_coord,
+            y=y_coord,
+            physics=False,
+            font={"size": 14, "color": "white", "strokeWidth": 3, "strokeColor": "#0E1117"}
+        )
 
     for u, v, data in G.edges(data=True):
         edge_id = f"{u}-{v}"
-        net.add_edge(u, v, id=edge_id, color="#2C313A", width=1, title=f"Trust: {data['trust']}")
+        net.add_edge(u, v, id=edge_id, color="#2C313A", width=1.2, title=f"Trust: {data['trust']}")
 
     html_string = net.generate_html()
 
@@ -78,7 +92,7 @@ def render_graph(G, active_path=None, source=None, target=None):
                     }} else {{
                         clearInterval(interval);
                     }}
-                }}, 500);
+                }}, 350);
             }}
         }}, 400);
         </script>
