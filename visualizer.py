@@ -98,28 +98,34 @@ def render_graph(G, active_path=None, source=None, target=None):
     path_json = json.dumps(path_edges)
 
     # Inject JS for automatic camera focus + smooth cyan route animation
+    # Inject JS for reliable camera focus (local + cloud) + smooth cyan route animation
     js_injection = f"""
     <script>
-    setTimeout(function() {{
-        if (typeof network !== 'undefined') {{
-            let focusNodes = {focus_json};
-            if (focusNodes.length > 0) {{
-                network.fit({{
-                    nodes: focusNodes,
-                    animation: {{
-                        duration: 700,
-                        easingFunction: "easeInOutQuad"
-                    }}
-                }});
-            }} else {{
-                network.fit({{ animation: {{ duration: 500 }} }});
+    (function() {{
+        let focusNodes = {focus_json};
+        let pathEdges = {path_json};
+        let hasFocused = false;
+
+        function applyCameraFocus() {{
+            if (typeof network !== 'undefined' && !hasFocused) {{
+                hasFocused = true;
+                if (focusNodes.length > 0) {{
+                    network.fit({{
+                        nodes: focusNodes,
+                        animation: {{
+                            duration: 750,
+                            easingFunction: "easeInOutQuad"
+                        }}
+                    }});
+                }} else {{
+                    network.fit({{ animation: {{ duration: 500 }} }});
+                }}
             }}
         }}
 
-        if (typeof edges !== 'undefined') {{
-            let pathEdges = {path_json};
-            let idx = 0;
-            if (pathEdges.length > 0) {{
+        function startRouteAnimation() {{
+            if (typeof edges !== 'undefined' && pathEdges.length > 0) {{
+                let idx = 0;
                 let interval = setInterval(function() {{
                     if (idx < pathEdges.length) {{
                         let edgeId = pathEdges[idx];
@@ -133,7 +139,22 @@ def render_graph(G, active_path=None, source=None, target=None):
                 }}, 350);
             }}
         }}
-    }}, 300);
+
+        function initVisuals() {{
+            if (typeof network !== 'undefined') {{
+                network.once("afterDrawing", function() {{
+                    setTimeout(applyCameraFocus, 150);
+                }});
+                // Fallback in case afterDrawing already fired
+                setTimeout(applyCameraFocus, 600);
+                setTimeout(startRouteAnimation, 500);
+            }} else {{
+                setTimeout(initVisuals, 150);
+            }}
+        }}
+
+        initVisuals();
+    }})();
     </script>
     """
     html_string = html_string.replace("</body>", js_injection + "</body>")
